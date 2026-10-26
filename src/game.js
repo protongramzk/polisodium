@@ -55,11 +55,11 @@
     constructor() { super({ key: 'GameScene' }); }
 
     preload() {
-      this.load.image('logo', 'public/logo.png');
+      this.load.image('logo', '/logo.png');
       this.load.spritesheet('player', DATA.player.sprite.path, {
         frameWidth: DATA.player.sprite.frameWidth, frameHeight: DATA.player.sprite.frameHeight
       });
-      this.load.spritesheet('ghosts', '/public/ghosts.png', { frameWidth: 16, frameHeight: 32 });
+      this.load.spritesheet('ghosts', '/ghosts.png', { frameWidth: 16, frameHeight: 32 });
       Object.entries(DATA.episodes).forEach(([episode, cfg]) => {
         this.load.image(`map${episode}`, cfg.map);
       });
