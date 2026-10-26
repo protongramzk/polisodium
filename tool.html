@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Event Mapper Tool</title>
+  <style>
+    :root {
+      --bg: #121212;
+      --surface: #1e1e1e;
+      --primary: #ff5252;
+      --text: #e0e0e0;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace, sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Top Bar */
+    .top-bar {
+      background: var(--surface);
+      padding: 12px 16px;
+      border-bottom: 1px solid #333;
+      display: flex;
+      align-items: center;
+      z-index: 10;
+    }
+    
+    .top-bar input[type="file"] {
+      font-family: inherit;
+      font-size: 14px;
+      color: var(--text);
+    }
+
+    /* Workspace */
+    .workspace {
+      flex: 1;
+      overflow: auto;
+      padding: 24px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      background: #000;
+    }
+
+    .map-wrapper {
+      position: relative;
+      display: inline-block;
+      border: 1px solid #333;
+      /* Default zoom 2x biar keliatan, bisa diedit */
+      transform: scale(2);
+      transform-origin: top center;
+      margin-bottom: 150px; 
+    }
+
+    img#mapImg {
+      display: block;
+      image-rendering: pixelated; /* Biar map gameboy tetep tajam */
+      max-width: 100%;
+    }
+
+    /* Dot overlay */
+    #eventDot {
+      position: absolute;
+      background-color: rgba(255, 82, 82, 0.4);
+      border: 1px solid var(--primary);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none; /* Biar klik nembus ke gambar */
+      display: none;
+    }
+
+    /* Bottom Bar (Cassava UI style: 0px border radius, bottom anchored) */
+    .bottom-bar {
+      background: var(--surface);
+      padding: 16px;
+      border-top: 1px solid #333;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+      z-index: 10;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    input[type="range"] {
+      width: 200px;
+      accent-color: var(--primary);
+    }
+
+    button {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      font-family: inherit;
+      font-weight: bold;
+      cursor: pointer;
+      text-transform: uppercase;
+    }
+
+    button:hover { background: #ff7676; }
+
+    /* Floating Snackbar */
+    #snackbar {
+      position: fixed;
+      top: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #ffffff;
+      color: #000;
+      padding: 8px 16px;
+      font-weight: bold;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      opacity: 0;
+      transition: opacity 0.2s ease-in-out;
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    #snackbar.show {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="top-bar">
+    <input type="file" id="fileInput">
+  </div>
+
+  <div class="workspace">
+    <div class="map-wrapper" id="mapWrapper" style="display: none;">
+      <img id="mapImg" src="" alt="Map">
+      <div id="eventDot"></div>
+    </div>
+  </div>
+
+  <div class="bottom-bar">
+    <div class="control-group">
+      <label for="radiusSlider">Radius:</label>
+      <input type="range" id="radiusSlider" min="1" max="100" value="16">
+      <span id="radiusVal">16</span> px
+    </div>
+    <div class="control-group">
+      <span id="coordDisplay">X: - | Y: -</span>
+    </div>
+    <button id="copyBtn">Copy { coord, radius }</button>
+  </div>
+
+  <div id="snackbar">Coordinate Copied!</div>
+
+<script>
+  const fileInput = document.getElementById('fileInput');
+  const mapWrapper = document.getElementById('mapWrapper');
+  const mapImg = document.getElementById('mapImg');
+  const eventDot = document.getElementById('eventDot');
+  const radiusSlider = document.getElementById('radiusSlider');
+  const radiusVal = document.getElementById('radiusVal');
+  const coordDisplay = document.getElementById('coordDisplay');
+  const copyBtn = document.getElementById('copyBtn');
+  const snackbar = document.getElementById('snackbar');
+
+  let currentX = 0;
+  let currentY = 0;
+  let snackbarTimeout;
+
+  // 1. Upload File & Render Image
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      mapImg.src = event.target.result;
+      mapWrapper.style.display = 'inline-block';
+      eventDot.style.display = 'none'; // Sembunyikan dot tiap ganti map
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // 2. Klik pada Map untuk Set Koordinat
+  mapImg.addEventListener('pointerdown', (e) => {
+    const rect = mapImg.getBoundingClientRect();
+    
+    // Hitung skala kompensasi kalau gambar di-zoom via CSS
+    const scaleX = mapImg.naturalWidth / rect.width;
+    const scaleY = mapImg.naturalHeight / rect.height;
+
+    // Dapatkan koordinat pixel aslinya (berdasar ukuran file natural)
+    currentX = Math.round((e.clientX - rect.left) * scaleX);
+    currentY = Math.round((e.clientY - rect.top) * scaleY);
+
+    updateDotUI();
+    showSnackbar(`Titik diset: [${currentX}, ${currentY}]`);
+  });
+
+  // 3. Slider Radius
+  radiusSlider.addEventListener('input', (e) => {
+    radiusVal.textContent = e.target.value;
+    if (eventDot.style.display !== 'none') {
+      updateDotUI();
+    }
+  });
+
+  // 4. Update Posisi & Ukuran Visual Dot
+  function updateDotUI() {
+    eventDot.style.display = 'block';
+    const radius = parseInt(radiusSlider.value, 10);
+
+    // Posisi dot (persentase terhadap ukuran aslinya)
+    const pctX = (currentX / mapImg.naturalWidth) * 100;
+    const pctY = (currentY / mapImg.naturalHeight) * 100;
+
+    // Diameter = radius * 2. Jadikan persentase agar ikut ter-scale.
+    const pctWidth = ((radius * 2) / mapImg.naturalWidth) * 100;
+    const pctHeight = ((radius * 2) / mapImg.naturalHeight) * 100;
+
+    eventDot.style.left = `${pctX}%`;
+    eventDot.style.top = `${pctY}%`;
+    eventDot.style.width = `${pctWidth}%`;
+    eventDot.style.height = `${pctHeight}%`;
+
+    coordDisplay.textContent = `X: ${currentX} | Y: ${currentY}`;
+  }
+
+  // 5. Copy Data Event format JSON Object
+  copyBtn.addEventListener('click', () => {
+    if (eventDot.style.display === 'none') {
+      showSnackbar("Pilih titik di map dulu bro!");
+      return;
+    }
+    
+    const radius = parseInt(radiusSlider.value, 10);
+    const dataStr = `{ coord: [${currentX}, ${currentY}], radius: ${radius} }`;
+    
+    navigator.clipboard.writeText(dataStr).then(() => {
+      showSnackbar(`Dicopy: ${dataStr}`);
+    });
+  });
+
+  // 6. Floating Snackbar
+  function showSnackbar(msg) {
+    snackbar.textContent = msg;
+    snackbar.classList.add('show');
+    
+    clearTimeout(snackbarTimeout);
+    snackbarTimeout = setTimeout(() => {
+      snackbar.classList.remove('show');
+    }, 2000);
+  }
+</script>
+
+</body>
+</html>
