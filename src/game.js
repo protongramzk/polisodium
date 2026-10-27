@@ -9,9 +9,19 @@
   const $error = document.getElementById('error');
 
   function freshState() {
-    return { episode: 1, hp: DATA.player.maxHp, defeated: [], storySeen: [], mode: 'story', ending: false };
+    return { 
+      episode: 1, 
+      hp: DATA.player.maxHp, 
+      maxHp: DATA.player.maxHp, 
+      atk: 12, 
+      defeated: [], 
+      storySeen: [], 
+      mode: 'story', 
+      ending: false 
+    };
   }
-    function loadState() {
+
+  function loadState() {
     try {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return { ...freshState(), mode: 'intro', hasSave: false };
@@ -20,14 +30,13 @@
       const state = { ...freshState(), ...saved };
       
       state.episode = Math.max(1, Math.min(8, Number(state.episode) || 1));
-      state.hp = Math.max(1, Math.min(DATA.player.maxHp, Number(state.hp) || DATA.player.maxHp));
+      state.maxHp = Number(state.maxHp) || DATA.player.maxHp;
+      state.atk = Number(state.atk) || 12;
+      state.hp = Math.max(1, Math.min(state.maxHp, Number(state.hp) || state.maxHp));
       if (!Array.isArray(state.defeated)) state.defeated = [];
       if (!Array.isArray(state.storySeen)) state.storySeen = [];
 
-      // Simpan mode game terakhir (world/story) buat dipanggil pas tombol LOAD ditekan
       state.savedMode = saved.mode || (state.storySeen.includes(state.episode) ? 'world' : 'story');
-      
-      // FIX: Paksa selalu masuk ke intro tiap kali window/browser di-reload!
       state.mode = 'intro';
       state.hasSave = true;
       return state;
@@ -40,8 +49,9 @@
     state: loadState(),
     scene: null,
     heldDirection: null,
-    pressA() { if (this.scene) this.scene.handleA(); },
-    pressB() { /* B sengaja belum dipakai dalam spesifikasi kontrol. */ },
+    pressA() { if (this.scene && this.scene.handleA) this.scene.handleA(); },
+    pressB() { if (this.scene && this.scene.toggleStats) this.scene.toggleStats(); },
+    pressStart() { if (this.scene && this.scene.toggleStats) this.scene.toggleStats(); },
     setDirection(direction) { this.heldDirection = direction; },
     clearDirection() { this.heldDirection = null; },
     save() {
@@ -74,26 +84,23 @@
         left: Phaser.Input.Keyboard.KeyCodes.LEFT, right: Phaser.Input.Keyboard.KeyCodes.RIGHT,
         w: Phaser.Input.Keyboard.KeyCodes.W, a: Phaser.Input.Keyboard.KeyCodes.A,
         s: Phaser.Input.Keyboard.KeyCodes.S, d: Phaser.Input.Keyboard.KeyCodes.D,
-        confirm: Phaser.Input.Keyboard.KeyCodes.Z, enter: Phaser.Input.Keyboard.KeyCodes.ENTER,
-        space: Phaser.Input.Keyboard.KeyCodes.SPACE, escape: Phaser.Input.Keyboard.KeyCodes.X
+        z: Phaser.Input.Keyboard.KeyCodes.Z, x: Phaser.Input.Keyboard.KeyCodes.X,
+        enter: Phaser.Input.Keyboard.KeyCodes.ENTER, space: Phaser.Input.Keyboard.KeyCodes.SPACE
       });
       this.createAnimations();
       this.beginCurrentMode();
+      if (!this.textures.get('ghosts').has('mariaban_boss')) {
+        this.textures.get('ghosts').add('mariaban_boss', 0, 80, 0, 48, 32);
+      }
     }
-       transitionToMode(callback) {
-      const cam = this.cameras.main;
 
-      // 1. Shake & Fade Out
+    transitionToMode(callback) {
+      const cam = this.cameras.main;
       cam.shake(300, 0.015);
       cam.fadeOut(400, 0, 0, 0);
-
-      // 2. Pas layar udah gelap pekat, eksekusi ganti mode
       cam.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
-        cam.resetFX(); // Bersihkan efek fade out
-        
+        cam.resetFX();
         if (typeof callback === 'function') callback();
-
-        // 3. Terangkan lagi layarnya (Fade In)
         cam.fadeIn(400, 0, 0, 0);
       });
     }
@@ -118,29 +125,22 @@
       this.mapImage = null;
       this.storyText = null;
       this.battleButtons = [];
+      if (this.statsLayer) { this.statsLayer.destroy(); this.statsLayer = null; }
     }
 
-       beginCurrentMode() {
+    beginCurrentMode() {
       this.clearSceneObjects();
-      
-      // PENTING: Cek 'intro' dulu sebelum cek 'story' atau 'world'!
       if (app.state.mode === 'intro') this.showIntro();
       else if (app.state.ending) this.showEnding();
       else if (app.state.episode === 8 || app.state.mode === 'story') this.showStory(app.state.episode);
       else if (app.state.mode === 'world') this.showWorld();
       else this.showStory(app.state.episode);
-      
       app.save();
     }
 
-         // ============================================================
-    // INTRO SCREEN (Background Putih + Fix Text & Navigation)
-    // ============================================================
     showIntro() {
       this.clearSceneObjects();
       this.cameras.main.setScroll(0, 0);
-      
-      // 1. Ubah background intro jadi PUTIH
       this.cameras.main.setBackgroundColor('#ffffff');
       this.mode = 'intro';
 
@@ -151,32 +151,15 @@
       this.introOptions = hasSave ? ['LOAD', 'NEW_GAME'] : ['NEW_GAME'];
       this.introSelection = 0;
 
-      // 2. Logo Animasi (Jatuh + Bounce)
       this.logoSprite = this.add.image(W / 2, -70, 'logo').setOrigin(0.5, 0.5);
       this.logoSprite.setScale(0.42);
       this.introLayer.add(this.logoSprite);
 
-      this.tweens.add({
-        targets: this.logoSprite,
-        y: 40,
-        duration: 800,
-        ease: 'Bounce.easeOut'
-      });
+      this.tweens.add({ targets: this.logoSprite, y: 40, duration: 800, ease: 'Bounce.easeOut' });
 
-      // 3. Setup Bar Menu
       this.introBars = [];
-      const loadLabel = hasSave 
-        ? `LOAD: EP.${app.state.episode} HP:${app.state.hp}`
-        : `LOAD: NO SAVE`;
-
-      const menuConfig = hasSave 
-        ? [
-            { id: 'LOAD', label: loadLabel },
-            { id: 'NEW_GAME', label: 'NEW GAME' }
-          ]
-        : [
-            { id: 'NEW_GAME', label: 'NEW GAME' }
-          ];
+      const loadLabel = hasSave ? `LOAD: EP.${app.state.episode} HP:${app.state.hp}` : `LOAD: NO SAVE`;
+      const menuConfig = hasSave ? [{ id: 'LOAD', label: loadLabel }, { id: 'NEW_GAME', label: 'NEW GAME' }] : [{ id: 'NEW_GAME', label: 'NEW GAME' }];
 
       const startY = 82;
       const barHeight = 22;
@@ -184,25 +167,13 @@
 
       menuConfig.forEach((item, index) => {
         const yPos = startY + index * (barHeight + spacing);
-
         const barBg = this.add.graphics();
-        const textObj = this.makeText(W / 2, yPos + (barHeight / 2), item.label, 6, '#000000', { align: 'center' })
-          .setOrigin(0.5, 0.5);
+        const textObj = this.makeText(W / 2, yPos + (barHeight / 2), item.label, 8, '#000000', { align: 'center' }).setOrigin(0.5, 0.5);
 
-        this.introLayer.add(barBg);
-        this.introLayer.add(textObj);
-
-        this.introBars.push({
-          id: item.id,
-          y: yPos,
-          height: barHeight,
-          bg: barBg,
-          text: textObj,
-          rawLabel: item.label
-        });
+        this.introLayer.add([barBg, textObj]);
+        this.introBars.push({ id: item.id, y: yPos, height: barHeight, bg: barBg, text: textObj, rawLabel: item.label });
       });
 
-      // Siapkan key navigation agar tidak dibuat berulang kali di update()
       const K = Phaser.Input.Keyboard.KeyCodes;
       this.keyUp = this.input.keyboard.addKey(K.UP);
       this.keyDown = this.input.keyboard.addKey(K.DOWN);
@@ -214,59 +185,33 @@
 
     updateIntroLabels() {
       if (this.mode !== 'intro' || !this.introBars) return;
-
       this.introBars.forEach((bar, index) => {
         const isSelected = index === this.introSelection;
         bar.bg.clear();
-
         if (isSelected) {
-          // Bar Terpilih: Kotak Hitam, Teks Putih
-          bar.bg.fillStyle(PALETTE.black, 1);
-          bar.bg.fillRect(12, bar.y, 136, bar.height);
-          bar.bg.lineStyle(1, PALETTE.black, 1);
-          bar.bg.strokeRect(12, bar.y, 136, bar.height);
-
-          bar.text.setColor('#ffffff'); // FIX: Gunakan string hex warna langsung
-          bar.text.setText(`> ${bar.rawLabel} <`);
+          bar.bg.fillStyle(PALETTE.black, 1).fillRect(12, bar.y, 136, bar.height);
+          bar.bg.lineStyle(1, PALETTE.black, 1).strokeRect(12, bar.y, 136, bar.height);
+          bar.text.setColor('#ffffff').setText(`> ${bar.rawLabel} <`);
         } else {
-          // Bar Tidak Terpilih: Kotak Putih (Bordir Hitam), Teks Hitam
-          bar.bg.fillStyle(PALETTE.white, 1);
-          bar.bg.fillRect(12, bar.y, 136, bar.height);
-          bar.bg.lineStyle(1, PALETTE.black, 1);
-          bar.bg.strokeRect(12, bar.y, 136, bar.height);
-
-          bar.text.setColor('#000000'); // FIX: Gunakan string hex warna langsung
-          bar.text.setText(bar.rawLabel);
+          bar.bg.fillStyle(PALETTE.white, 1).fillRect(12, bar.y, 136, bar.height);
+          bar.bg.lineStyle(1, PALETTE.black, 1).strokeRect(12, bar.y, 136, bar.height);
+          bar.text.setColor('#000000').setText(bar.rawLabel);
         }
       });
     }
 
-    // ============================================================
-    // UPDATE LOOP (Terhubung ke Keyboard & D-Pad Layar Sentuh)
-    // ============================================================
     update(time, delta) {
       if (!this.input.keyboard) return;
-
       const JD = Phaser.Input.Keyboard.JustDown;
+      const K = Phaser.Input.Keyboard.KeyCodes;
 
-      // Tombol Konfirmasi (A / Z / Enter / Space)
-      if (JD(this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z)) ||
-          JD(this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER)) ||
-          JD(this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE))) {
-        this.handleA();
-      }
+      if (JD(this.input.keyboard.addKey(K.Z))) this.handleA();
+      if (JD(this.input.keyboard.addKey(K.X))) app.pressB();
+      if (JD(this.input.keyboard.addKey(K.ENTER)) || JD(this.input.keyboard.addKey(K.SPACE))) app.pressStart();
 
-      // Input Navigasi Intro (Keyboard & Touch D-Pad)
       if (this.mode === 'intro') {
-        // 1. Keyboard Navigation
-        if (this.keyUp && (JD(this.keyUp) || JD(this.keyW))) {
-          this.moveIntroSelection(-1);
-        }
-        if (this.keyDown && (JD(this.keyDown) || JD(this.keyS))) {
-          this.moveIntroSelection(1);
-        }
-
-        // 2. Touch D-Pad Navigation
+        if (this.keyUp && (JD(this.keyUp) || JD(this.keyW))) this.moveIntroSelection(-1);
+        if (this.keyDown && (JD(this.keyDown) || JD(this.keyS))) this.moveIntroSelection(1);
         if (app.heldDirection && app.heldDirection !== this.lastIntroDirection) {
           this.lastIntroDirection = app.heldDirection;
           if (app.heldDirection === 'up') this.moveIntroSelection(-1);
@@ -289,31 +234,47 @@
     confirmIntroOption() {
       if (this.mode !== 'intro') return;
       const selected = this.introOptions[this.introSelection];
-
       if (selected === 'NEW_GAME') {
         localStorage.removeItem(SAVE_KEY);
         app.state = freshState();
         app.state.mode = 'story';
         app.save();
       } else if (selected === 'LOAD') {
-        if (app.state.storySeen.includes(app.state.episode)) {
-          app.state.mode = 'world';
-        } else {
-          app.state.mode = 'story';
-        }
+        app.state.mode = app.state.storySeen.includes(app.state.episode) ? 'world' : 'story';
       }
-
-      // Transisi getar & fade out
-      this.transitionToMode(() => {
-        this.beginCurrentMode();
-      });
+      this.transitionToMode(() => this.beginCurrentMode());
     }
 
     makeText(x, y, text, size = 8, color = '#000000', options = {}) {
+      // Resolution tinggi memastikan font tidak blur walaupun berukuran kecil
       return this.add.text(x, y, text, {
-        fontFamily: '"Press Start 2P", monospace', fontSize: `${size}px`, color,
-        resolution: 1, lineSpacing: 2, ...options
+        fontFamily: '"Press Start 2P", monospace', 
+        fontSize: `${size}px`, color,
+        resolution: 4, lineSpacing: 2, ...options
       });
+    }
+
+    toggleStats() {
+      if (this.mode === 'world') {
+        this.mode = 'stats';
+        this.statsLayer = this.add.container(0, 0);
+        const bg = this.add.graphics();
+        bg.fillStyle(0x000000, 0.85).fillRect(20, 25, 120, 94);
+        bg.lineStyle(1, 0xffffff).strokeRect(20, 25, 120, 94);
+
+        const title = this.makeText(W/2, 35, "STATUS PLAYER", 8, '#ffffff').setOrigin(0.5, 0.5);
+        const hpTxt = this.makeText(28, 50, `HP  : ${app.state.hp}/${app.state.maxHp}`, 8, '#ffffff');
+        const atkTxt = this.makeText(28, 65, `ATK : ${app.state.atk}`, 8, '#ffffff');
+        const epTxt = this.makeText(28, 80, `EP  : ${app.state.episode}`, 8, '#ffffff');
+        const closeTxt = this.makeText(W/2, 105, "> TUTUP <", 8, '#aaaaaa').setOrigin(0.5, 0.5);
+
+        this.statsLayer.add([bg, title, hpTxt, atkTxt, epTxt, closeTxt]);
+        this.worldLayer.add(this.statsLayer);
+      } else if (this.mode === 'stats') {
+        this.statsLayer.destroy();
+        this.statsLayer = null;
+        this.mode = 'world';
+      }
     }
 
     showStory(storyId) {
@@ -342,8 +303,8 @@
       const footer = this.add.graphics();
       footer.fillStyle(PALETTE.black, 1).fillRect(0, 112, W, 32);
       this.storyLayer.add(footer);
-      this.storyCounter = this.makeText(6, 116, '', 6, '#aaaaaa');
-      this.storyPrompt = this.makeText(6, 130, 'A: PERCEPAT', 7, '#ffffff');
+      this.storyCounter = this.makeText(6, 116, '', 8, '#aaaaaa');
+      this.storyPrompt = this.makeText(6, 128, 'A: PERCEPAT', 8, '#ffffff');
       this.storyLayer.add([this.storyCounter, this.storyPrompt]);
       this.typed = '';
       this.charIndex = 0;
@@ -373,7 +334,7 @@
       if (!this.fullPageText.length) this.completeTyping();
     }
 
-    wrapAndScroll(text, maxChars = 18, maxLines = 8) {
+    wrapAndScroll(text, maxChars = 17, maxLines = 8) {
       const words = text.split(/\s+/);
       const lines = [];
       let line = '';
@@ -390,16 +351,13 @@
       return lines.slice(-maxLines).join('\n');
     }
 
-    renderStoryText() {
-      this.storyText.setText(this.wrapAndScroll(this.typed));
-    }
+    renderStoryText() { this.storyText.setText(this.wrapAndScroll(this.typed)); }
 
     completeTyping() {
       if (!this.isTyping) return;
       this.isTyping = false;
       if (this.typeTimer) this.typeTimer.remove(false);
-      this.storyPrompt.setText(this.pageIndex === this.story.pages.length - 1
-        ? `A: ${this.story.endLabel || 'SELESAI'}` : 'A: LANJUT');
+      this.storyPrompt.setText(this.pageIndex === this.story.pages.length - 1 ? `A: ${this.story.endLabel || 'SELESAI'}` : 'A: LANJUT');
     }
 
     handleA() {
@@ -416,11 +374,12 @@
         }
       } else if (this.mode === 'battle') {
         this.chooseBattleAction(this.battleSelection || 0);
+      } else if (this.mode === 'win_dialog') {
+        this.winBattle();
       }
-      // A/B tidak melakukan apa pun saat mode world.
     }
 
-        finishStory() {
+    finishStory() {
       if (this.storyEnded) return;
       this.storyEnded = true;
       app.state.storySeen = [...new Set([...app.state.storySeen, this.storyId])];
@@ -436,13 +395,11 @@
       }
       app.save();
 
-      // Panggil transisi shake + fade out
       this.transitionToMode(() => {
         if (this.storyId === 8) this.showEnding();
         else this.beginCurrentMode();
       });
     }
-
 
     showWorld() {
       const episode = app.state.episode;
@@ -470,17 +427,15 @@
       this.fightPoint = cfg.fight;
       this.fightRadius = cfg.radius;
       this.enemyId = cfg.enemyId;
-      this.worldHud = this.makeText(3, 3, `EP ${episode}  HP ${app.state.hp}/${DATA.player.maxHp}`, 6, '#ffffff', {
+      this.worldHud = this.makeText(3, 3, `EP ${episode} HP ${app.state.hp}/${app.state.maxHp}`, 8, '#ffffff', {
         backgroundColor: '#000000', padding: { x: 2, y: 2 }, scrollFactor: 0
       });
       this.worldLayer.add(this.worldHud);
-      this.fightMarker = this.add.circle(cfg.fight[0], cfg.fight[1], 3, 0xffffff, 0.65)
-        .setStrokeStyle(1, 0x000000, 1);
+      this.fightMarker = this.add.circle(cfg.fight[0], cfg.fight[1], 3, 0xffffff, 0.65).setStrokeStyle(1, 0x000000, 1);
       this.worldLayer.add(this.fightMarker);
       this.cameras.main.setBackgroundColor('#555555');
     }
 
-       
     getKeyboardDirection() {
       const k = this.input.keyboard;
       const down = code => k.checkDown(this.input.keyboard.addKey(code), 0);
@@ -492,7 +447,7 @@
     }
 
     updateWorldMovement() {
-      if (!this.player || this.playerBusy) return;
+      if (!this.player || this.playerBusy || this.mode === 'stats') return;
       const direction = app.heldDirection || this.getKeyboardDirection();
       if (!direction) {
         this.player.anims.stop();
@@ -503,7 +458,6 @@
       this.lastDirection = direction;
       const nx = Phaser.Math.Clamp(this.player.x + vector.dx * DATA.player.sprite.stepSize, 8, 248);
       const ny = Phaser.Math.Clamp(this.player.y + vector.dy * DATA.player.sprite.stepSize, 8, 248);
-      // #000000 dan #AAAAAA sama-sama solid. Tolak langkah sebelum tween dimulai.
       if (!this.canOccupy(nx, ny)) {
         this.player.anims.stop();
         this.player.setFrame(DATA.player.directions[direction].idleFrame);
@@ -520,9 +474,7 @@
       });
     }
 
-
     buildCollisionMap(episode) {
-      // Baca warna asli file map, bukan warna hasil render di layar.
       const source = this.textures.get(`map${episode}`).getSourceImage();
       const canvas = document.createElement('canvas');
       canvas.width = source.naturalWidth || source.width || 256;
@@ -535,8 +487,6 @@
         this.collisionHeight = canvas.height;
       } catch (error) {
         this.collisionPixels = null;
-        console.error('Tidak bisa membaca piksel collision map. Pastikan map berasal dari origin yang sama.', error);
-        $error.textContent = 'Collision map gagal dibaca. Periksa path dan akses aset map.';
       }
     }
 
@@ -550,20 +500,12 @@
       if (data[i + 3] === 0) return false;
       return SOLID_RGB.has(`${data[i]},${data[i + 1]},${data[i + 2]}`);
     }
-canOccupy(x, y) {
-  // Cukup cek 4 titik di area pusat/kaki (offset 3px dari titik tengah)
-  // Makin kecil nilai offset (misal 2 atau 3), makin selip dan licin di celah kurva
-  const margin = 0.1; 
-  const points = [
-    [x - margin, y - margin], 
-    [x + margin, y - margin],
-    [x - margin, y + margin], 
-    [x + margin, y + margin]
-  ];
 
-  return points.every(([px, py]) => !this.isSolidPixel(px, py));
-}
-
+    canOccupy(x, y) {
+      const margin = 0.1; 
+      const points = [ [x - margin, y - margin], [x + margin, y - margin], [x - margin, y + margin], [x + margin, y + margin] ];
+      return points.every(([px, py]) => !this.isSolidPixel(px, py));
+    }
 
     checkFightPoint() {
       if (this.mode !== 'world' || !this.player) return;
@@ -585,7 +527,6 @@ canOccupy(x, y) {
       this.clearSceneObjects();
       this.showBattle();
     }
-
     showBattle() {
       this.mode = 'battle';
       this.cameras.main.setBounds(0, 0, W, H);
@@ -593,34 +534,60 @@ canOccupy(x, y) {
       this.cameras.main.setBackgroundColor('#ffffff');
       this.battleLayer = this.add.container(0, 0);
       this.modeLayer = this.battleLayer;
+      
       const bg = this.add.graphics();
       bg.fillStyle(PALETTE.white, 1).fillRect(0, 0, W, H);
       bg.lineStyle(1, PALETTE.black, 1).strokeRect(1, 1, W - 2, H - 2);
       this.battleLayer.add(bg);
-      this.battleLayer.add(this.makeText(6, 5, `EP ${app.state.episode}  BATTLE`, 7));
-      this.enemySprite = this.add.sprite(112, 36, 'ghosts', this.enemy.frame).setOrigin(0.5, 0.5);
+      
+      this.battleLayer.add(this.makeText(6, 5, `EP ${app.state.episode} BATTLE`, 8));
+
+      // --- FIX MARIABAN ---
+      const ghostTex = this.textures.get('ghosts');
+      
+      // Index mulai dari 6 (6 * 16px = offset X 96)
+      // Mengambil lebar 3 sprite (3 * 16px = lebar 48)
+      // Tinggi tetap 32
+      if (!ghostTex.has('mariaban_boss')) {
+        ghostTex.add('mariaban_boss', 0, 96, 0, 48, 32);
+      }
+
+      // Cek apakah musuh ini adalah Bos
+      if (this.enemy.isBoss) {
+        this.enemySprite = this.add.sprite(112, 36, 'ghosts', 'mariaban_boss').setOrigin(0.5, 0.5);
+      } else {
+        this.enemySprite = this.add.sprite(112, 36, 'ghosts', this.enemy.frame).setOrigin(0.5, 0.5);
+      }
+      
       this.enemySprite.setScale(2);
       this.battleLayer.add(this.enemySprite);
-      this.enemyNameText = this.makeText(7, 20, this.enemy.name, 7);
-      this.enemyHpText = this.makeText(7, 31, `HP ${this.enemy.hp}/${this.enemy.maxHp}`, 6);
-      this.playerHpText = this.makeText(7, 47, `MC HP ${app.state.hp}/${DATA.player.maxHp}`, 6);
+
+      // --- TEKS INFO LAWAN & HP DIPERKECIL (Size 6) ---
+      this.enemyNameText = this.makeText(7, 20, this.enemy.name, 6);
+      this.enemyHpText = this.makeText(7, 30, `HP ${this.enemy.hp}/${this.enemy.maxHp}`, 6);
+      this.playerHpText = this.makeText(7, 45, `MC HP ${app.state.hp}/${app.state.maxHp}`, 6);
       this.battleLayer.add([this.enemyNameText, this.enemyHpText, this.playerHpText]);
+
       const panel = this.add.graphics();
       panel.fillStyle(PALETTE.black, 1).fillRect(3, 66, 154, 75);
       panel.lineStyle(1, PALETTE.white, 1).strokeRect(4, 67, 152, 73);
       this.battleLayer.add(panel);
-      this.battleMessageText = this.makeText(8, 72, this.battleMessage, 6, '#ffffff', { wordWrap: { width: 142 } });
+      
+      this.battleMessageText = this.makeText(8, 72, this.battleMessage, 8, '#ffffff', { wordWrap: { width: 142 } });
       this.battleLayer.add(this.battleMessageText);
+      
       this.battleLabels = ['SERANG', 'TRIK', 'TENANG', 'PANCING'];
       this.battleLabels.forEach((label, i) => {
         const x = i % 2 === 0 ? 8 : 84;
         const y = 100 + Math.floor(i / 2) * 17;
-        const text = this.makeText(x, y, `${i === this.battleSelection ? '>' : ' '} ${label}`, 7, '#ffffff');
+        const text = this.makeText(x, y, `${i === this.battleSelection ? '>' : ' '} ${label}`, 8, '#ffffff');
         this.battleButtons.push(text);
         this.battleLayer.add(text);
       });
+      
       this.updateBattleLabels();
     }
+
 
     updateBattleLabels() {
       this.battleButtons.forEach((text, i) => {
@@ -656,31 +623,64 @@ canOccupy(x, y) {
     chooseBattleAction(index) {
       if (this.mode !== 'battle' || this.battleBusy) return;
       this.battleBusy = true;
+      const baseAtk = app.state.atk || 12;
       const actions = [
-        { name: 'Serang', damage: 12, message: 'MC menyerang!' },
-        { name: 'Trik', damage: 20, message: 'Trik berhasil!' },
-        { name: 'Tenang', heal: 14, message: 'MC menenangkan diri dan memulihkan HP.' },
-        { name: 'Pancing', damage: 8, weaken: true, message: 'MC memancing lawan agar lengah!' }
+        { name: 'Serang', damage: baseAtk, message: 'MC menyerang!' },
+        { name: 'Trik', damage: baseAtk + 8, message: 'Trik berhasil!' },
+        { name: 'Tenang', heal: 14, message: 'MC pulih.' },
+        { name: 'Pancing', damage: baseAtk - 4, weaken: true, message: 'Lawan lengah!' }
       ];
       const action = actions[index];
-      if (action.heal) app.state.hp = Math.min(DATA.player.maxHp, app.state.hp + action.heal);
-      if (action.damage) this.enemy.hp = Math.max(0, this.enemy.hp - action.damage);
+      
+      if (action.heal) app.state.hp = Math.min(app.state.maxHp, app.state.hp + action.heal);
+      if (action.damage) {
+        this.enemy.hp = Math.max(0, this.enemy.hp - action.damage);
+        // FITUR 1: Animasi musuh bergetar saat terserang
+        this.tweens.add({ targets: this.enemySprite, x: '+=3', yoyo: true, repeat: 3, duration: 40 });
+      }
+      
       this.battleMessageText.setText(action.message);
       this.refreshBattleStats();
+      
       if (this.enemy.hp <= 0) {
-        this.time.delayedCall(500, () => this.winBattle());
+        this.time.delayedCall(600, () => {
+          // FITUR 3: RNG Upgrade ATK / HP
+          const isHpBoost = Math.random() > 0.5;
+          const power = this.enemy.maxHp + (this.enemy.atk || 10);
+          let dialogTxt = "";
+          
+          if (isHpBoost) {
+            const boost = Math.floor(power * 0.15) + 2;
+            app.state.maxHp += boost;
+            app.state.hp = app.state.maxHp;
+            dialogTxt = `MENANG! Mendapatkan ${boost} HP Tambahan.`;
+          } else {
+            const boost = Math.floor(power * 0.05) + 1;
+            app.state.atk += boost;
+            dialogTxt = `MENANG! Mendapatkan ${boost} ATK Tambahan.`;
+          }
+          
+          this.battleMessageText.setText(dialogTxt + "\n\nA: LANJUT");
+          this.mode = 'win_dialog';
+          app.save();
+        });
         return;
       }
-      this.time.delayedCall(450, () => {
+      
+      this.time.delayedCall(500, () => {
         const damage = Math.max(1, this.enemy.atk - (action.weaken ? 6 : 0));
         app.state.hp = Math.max(0, app.state.hp - damage);
-        this.battleMessageText.setText(`${this.enemy.name} menyerang! MC -${damage} HP.`);
+        this.battleMessageText.setText(`${this.enemy.name} serang! MC -${damage} HP.`);
+        
+        // FITUR 2: Animasi Kamera (Layar) bergetar saat musuh menyerang
+        this.cameras.main.shake(150, 0.012);
+        
         this.refreshBattleStats();
         app.save();
         if (app.state.hp <= 0) {
-          this.time.delayedCall(650, () => this.loseBattle());
+          this.time.delayedCall(700, () => this.loseBattle());
         } else {
-          this.time.delayedCall(650, () => {
+          this.time.delayedCall(700, () => {
             this.battleMessageText.setText('Pilih tindakan.');
             this.battleBusy = false;
           });
@@ -690,30 +690,25 @@ canOccupy(x, y) {
 
     refreshBattleStats() {
       this.enemyHpText.setText(`HP ${this.enemy.hp}/${this.enemy.maxHp}`);
-      this.playerHpText.setText(`MC HP ${app.state.hp}/${DATA.player.maxHp}`);
+      this.playerHpText.setText(`MC HP ${app.state.hp}/${app.state.maxHp}`);
       app.save();
     }
 
-       winBattle() {
+    winBattle() {
       app.state.defeated = [...new Set([...app.state.defeated, this.enemy.id])];
       app.state.hp = Math.max(1, app.state.hp);
       app.state.episode = Math.min(8, app.state.episode + 1);
       app.state.mode = 'story';
       app.state.ending = false;
       app.save();
-
-      this.transitionToMode(() => {
-        this.beginCurrentMode();
-      });
+      this.transitionToMode(() => this.beginCurrentMode());
     }
+
     loseBattle() {
-      app.state.hp = DATA.player.maxHp;
+      app.state.hp = app.state.maxHp;
       app.state.mode = 'world';
       app.save();
-
-      this.transitionToMode(() => {
-        this.showBattleOver();
-      });
+      this.transitionToMode(() => this.showBattleOver());
     }
 
     showBattleOver() {
@@ -722,7 +717,7 @@ canOccupy(x, y) {
       this.cameras.main.setBackgroundColor('#000000');
       this.mode = 'gameover';
       const text = this.makeText(12, 35, 'MC KALAH!\nHP DIPULIHKAN.', 8, '#ffffff', { align: 'center' });
-      const prompt = this.makeText(8, 78, 'A: COBA LAGI', 7, '#ffffff');
+      const prompt = this.makeText(8, 78, 'A: COBA LAGI', 8, '#ffffff');
       this.modeLayer = this.add.container(0, 0, [text, prompt]);
       this.gameover = true;
     }
@@ -731,11 +726,24 @@ canOccupy(x, y) {
       this.clearSceneObjects();
       this.cameras.main.setScroll(0, 0);
       this.cameras.main.setBackgroundColor('#000000');
-      this.mode = 'ending';
-      const title = this.makeText(18, 40, 'POLISODIUM', 10, '#ffffff');
-      const sub = this.makeText(18, 62, 'TO BE CONTINUED...', 6, '#ffffff');
-      const reset = this.makeText(18, 100, 'A: MAIN LAGI', 7, '#ffffff');
-      this.modeLayer = this.add.container(0, 0, [title, sub, reset]);
+      this.mode = 'ending_scroll';
+      
+      // FITUR 4: Teks Ending Scroll panjang
+      const textContent = `POLISODIUM\nRotoverse Game\n\nProgrammer\nGuntur Hidayat (3)\n\nArtist\nGuntur Hidayat (1)\n\nStory & Dialogue\nGuntur Hidayat (6)\n\nAll story is fictional and any resemblance to real persons, living or dead, is purely coincidental.`;
+      const scrollText = this.makeText(W / 2, H, textContent, 8, '#ffffff', { align: 'center', wordWrap: { width: 140 } }).setOrigin(0.5, 0);
+      this.modeLayer = this.add.container(0, 0, [scrollText]);
+      
+      this.tweens.add({
+        targets: scrollText,
+        y: -scrollText.height - 20,
+        duration: 12000,
+        onComplete: () => {
+          localStorage.removeItem(SAVE_KEY);
+          app.state = freshState();
+          app.save();
+          this.beginCurrentMode();
+        }
+      });
     }
 
     showFatal(message) {
@@ -745,14 +753,11 @@ canOccupy(x, y) {
     }
   }
 
-  // Extend A handling for game-over/restart and ending reset.
   const OriginalScene = GameScene;
   const originalHandleA = OriginalScene.prototype.handleA;
-    OriginalScene.prototype.handleA = function() {
-    if (this.mode === 'intro') {
-      this.confirmIntroOption();
-      return;
-    }
+  OriginalScene.prototype.handleA = function() {
+    if (this.mode === 'intro') { this.confirmIntroOption(); return; }
+    if (this.mode === 'stats') { return; } // A tidak dipakai tutup stats
     if (this.mode === 'gameover') {
       this.gameover = false;
       app.state.mode = 'world';
@@ -760,7 +765,9 @@ canOccupy(x, y) {
       this.beginCurrentMode();
       return;
     }
-    if (this.mode === 'ending') {
+    if (this.mode === 'ending_scroll') {
+      // Skips ending when A is pressed
+      this.tweens.killAll();
       localStorage.removeItem(SAVE_KEY);
       app.state = freshState();
       app.save();
@@ -773,10 +780,8 @@ canOccupy(x, y) {
   const config = {
     type: Phaser.CANVAS,
     parent: 'game-wrap',
-    width: W,
-    height: H,
-    pixelArt: true,
-    antialias: false,
+    width: W, height: H,
+    pixelArt: true, antialias: false,
     backgroundColor: '#ffffff',
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: W, height: H },
     render: { pixelArt: true, antialias: false, roundPixels: true },
@@ -784,15 +789,10 @@ canOccupy(x, y) {
   };
 
   document.fonts.ready.then(() => {
-    try {
-      new Phaser.Game(config);
-    } catch (err) {
-      $error.textContent = `Gagal memulai game: ${err.message}`;
-      console.error(err);
-    }
+    try { new Phaser.Game(config); } 
+    catch (err) { $error.textContent = `Gagal memulai game: ${err.message}`; }
   });
 
-  // Second canvas: same logical dimensions as the game screen.
   const controls = document.getElementById('controls');
   const ctx = controls.getContext('2d');
   const drawControls = () => {
@@ -808,12 +808,19 @@ canOccupy(x, y) {
     // D-pad
     key(29, 28, 22, 22, '↑'); key(7, 50, 22, 22, '←'); key(29, 50, 22, 22, '•');
     key(51, 50, 22, 22, '→'); key(29, 72, 22, 22, '↓');
+    
+    // Tombol Start Virtual (FITUR 5)
+    ctx.fillStyle = '#292929'; ctx.fillRect(60, 115, 40, 14);
+    ctx.strokeStyle = '#bbb'; ctx.strokeRect(60, 115, 40, 14);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 8px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('START', 80, 122);
+
     // A/B
     ctx.fillStyle = '#292929'; ctx.beginPath(); ctx.arc(126, 56, 15, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = '#bbb'; ctx.stroke(); ctx.fillStyle = '#fff'; ctx.font = 'bold 12px monospace'; ctx.fillText('A', 126, 56);
     ctx.fillStyle = '#292929'; ctx.beginPath(); ctx.arc(101, 78, 13, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = '#bbb'; ctx.stroke(); ctx.fillStyle = '#fff'; ctx.fillText('B', 101, 78);
-    ctx.fillStyle = '#999'; ctx.font = '7px monospace'; ctx.fillText('POLISODIUM', 80, 128);
+    ctx.fillStyle = '#999'; ctx.font = '7px monospace'; ctx.fillText('POLISODIUM', 80, 136);
   };
   drawControls();
 
@@ -838,14 +845,13 @@ canOccupy(x, y) {
     if (direction) app.setDirection(direction);
     else if (Math.hypot(x - 126, y - 56) <= 17) app.pressA();
     else if (Math.hypot(x - 101, y - 78) <= 15) app.pressB();
+    else if (x >= 60 && x <= 100 && y >= 115 && y <= 129) app.pressStart();
   });
   const release = event => {
-    if (activePointer === event.pointerId) {
-      activePointer = null;
-      app.clearDirection();
-    }
+    if (activePointer === event.pointerId) { activePointer = null; app.clearDirection(); }
   };
   controls.addEventListener('pointerup', release);
   controls.addEventListener('pointercancel', release);
   controls.addEventListener('lostpointercapture', () => { activePointer = null; app.clearDirection(); });
 })();
+ 
