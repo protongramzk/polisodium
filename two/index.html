@@ -294,16 +294,16 @@ canvas.wave-border {
 
 // 1. Daftar seluruh aset yang akan di-cache
 const ASSETS_TO_CACHE = [
-  './src/char.png',
-  './src/intro.mp4',
+  '/two/char.png',
+  '/two/intro.mp4',
   // 36 Image Maps
-  ...Array.from({ length: 36 }, (_, i) => `./src/map/${i + 1}.jpg`),
+  ...Array.from({ length: 36 }, (_, i) => `/two/map/${i + 1}.jpg`),
   // Audio BGM
-  './src/music/santai.wav',
-  './src/music/santai_2.wav',
-  './src/music/konflik.wav',
-  './src/music/diskusi.wav',
-  './src/music/misteri.wav'
+  '/two/music/santai.wav',
+  '/two/music/santai_2.wav',
+  '/two/music/konflik.wav',
+  '/two/music/diskusi.wav',
+  '/two/music/misteri.wav'
 ];
 
 // 2. Injeksi Style CSS Overlay ke Head

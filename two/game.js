@@ -477,7 +477,7 @@ class IntroScene extends Phaser.Scene {
         this.add.image(72, 80, 'quantized_video').setDisplaySize(144, 160);
 
         this.videoEl = document.createElement('video');
-        this.videoEl.src = './src/intro.mp4';
+        this.videoEl.src = '/two/intro.mp4';
         this.videoEl.muted = true;
         this.videoEl.playsInline = true;
         this.videoEl.preload = 'auto';
