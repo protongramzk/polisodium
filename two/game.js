@@ -574,17 +574,17 @@ class GameScene extends Phaser.Scene {
 
     preload() {
         // Preload Map Visuals
-        for (let i = 1; i <= 36; i++) { this.load.image(`map_${i}`, `./src/map/${i}.jpg`); }
+        for (let i = 1; i <= 36; i++) { this.load.image(`map_${i}`, `/two/map/${i}.jpg`); }
         
         // Preload BGM
-        this.load.audio('music_santai', './src/music/santai.wav');
-        this.load.audio('music_santai_2', './src/music/santai_2.wav');
-        this.load.audio('music_konflik', './src/music/konflik.wav');
-        this.load.audio('music_diskusi', './src/music/diskusi.wav');
-        this.load.audio('music_misteri', './src/music/misteri.wav');
+        this.load.audio('music_santai', '/two/music/santai.wav');
+        this.load.audio('music_santai_2', '/two/music/santai_2.wav');
+        this.load.audio('music_konflik', '/two/music/konflik.wav');
+        this.load.audio('music_diskusi', '/two/music/diskusi.wav');
+        this.load.audio('music_misteri', '/two/music/misteri.wav');
 
         // Preload Battle Spritesheet
-        this.load.spritesheet('char_spritesheet', './src/char.png', { frameWidth: 32, frameHeight: 32 });
+        this.load.spritesheet('char_spritesheet', '/two/char.png', { frameWidth: 32, frameHeight: 32 });
     }
 
     init(data) {
