@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPG Story & Battle Flow Editor - Metro Pastel</title>
+    <!-- Font Open Sans -->
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Metro Dark Theme */
+            --bg-dark: #141414;
+            --panel-bg: #1f1f1f;
+            --card-bg: #2b2b2b;
+            --card-hover: #333333;
+            --border: #3d3d3d;
+            
+            /* Metro Orange Pastel Palette */
+            --accent: #ff9f43;          /* Pastel Orange */
+            --accent-hover: #ff793f;    /* Deeper Pastel Orange */
+            --accent-light: rgba(255, 159, 67, 0.15);
+            
+            /* Action Colors */
+            --danger: #ee5253;
+            --danger-hover: #ff6b6b;
+            --info: #0abde3;
+            --success: #10ac84;
+            
+            --text-main: #f5f6fa;
+            --text-muted: #a4b0be;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Open Sans', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* HEADER METRO STYLE */
+        header {
+            background-color: var(--panel-bg);
+            border-bottom: 2px solid var(--accent);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .brand {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            letter-spacing: 0.5px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* MAIN DUAL-PANEL LAYOUT */
+        main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 10px;
+            padding: 10px;
+            height: calc(100vh - 280px); /* Space for bottom sheet */
+            overflow: hidden;
+        }
+
+        .panel {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: 2px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            padding: 10px 14px;
+            background: rgba(0,0,0,0.3);
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .panel-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        /* TIMELINE FLOW LIST (PANEL KIRI) */
+        .flow-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .flow-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--accent);
+            padding: 10px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.15s;
+        }
+
+        .flow-card:hover {
+            background-color: var(--card-hover);
+        }
+
+        .flow-card.battle-type {
+            border-left-color: var(--danger);
+        }
+
+        .flow-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .flow-badge {
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 3px 6px;
+            border-radius: 2px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: var(--accent-light);
+            color: var(--accent);
+        }
+
+        .flow-card.battle-type .flow-badge {
+            background: rgba(238, 82, 83, 0.15);
+            color: var(--danger);
+        }
+
+        .flow-details {
+            font-size: 0.82rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .thumb-mini {
+            width: 44px;
+            height: 32px;
+            object-fit: cover;
+            border-radius: 2px;
+            border: 1px solid var(--border);
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 4px;
+        }
+
+        /* DIALOGUE REFERENCE DB (PANEL KANAN) */
+        .dialogue-item {
+            background: var(--card-bg);
+            border-radius: 2px;
+            padding: 8px 10px;
+            margin-bottom: 6px;
+            font-size: 0.8rem;
+            border-left: 3px solid transparent;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .dialogue-item:hover {
+            border-left-color: var(--accent);
+            background: var(--card-hover);
+        }
+
+        .dialogue-item .meta {
+            color: var(--accent);
+            font-weight: 600;
+            margin-bottom: 2px;
+            font-size: 0.75rem;
+        }
+
+        /* BOTTOM SHEET CONTROL (METRO TABS) */
+        .sheet-control {
+            height: 220px;
+            background: var(--panel-bg);
+            border-top: 2px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tabs {
+            display: flex;
+            background: rgba(0,0,0,0.4);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .tab-btn {
+            padding: 10px 18px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.82rem;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.15s;
+            font-family: inherit;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-main);
+        }
+
+        .tab-btn.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+            background: var(--panel-bg);
+        }
+
+        .tab-content {
+            flex: 1;
+            padding: 12px 18px;
+            display: none;
+            overflow-y: auto;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* FORM CONTROLS METRO */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            align-items: end;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        label {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        input, select, .btn {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 7px 10px;
+            border-radius: 2px;
+            font-size: 0.82rem;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--accent);
+        }
+
+        .btn {
+            background: var(--accent);
+            color: #141414;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: background 0.15s;
+        }
+
+        .btn:hover {
+            background: var(--accent-hover);
+            color: #fff;
+        }
+
+        .btn-secondary {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+        }
+
+        .btn-secondary:hover {
+            background: var(--card-hover);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: #fff;
+        }
+
+        .btn-danger:hover {
+            background: var(--danger-hover);
+        }
+
+        .btn-sm {
+            padding: 3px 8px;
+            font-size: 0.75rem;
+        }
+
+        .visual-picker-trigger {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--card-bg);
+            border: 1px dashed var(--border);
+            padding: 4px 8px;
+            border-radius: 2px;
+            cursor: pointer;
+        }
+
+        /* TAB 3: VISUAL MANAGEMENT GRID */
+        .manage-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+            gap: 10px;
+            padding-top: 5px;
+        }
+
+        .metro-tile {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-top: 3px solid var(--accent);
+            padding: 8px 10px;
+            border-radius: 2px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 6px;
+            position: relative;
+        }
+
+        .metro-tile.battle-tile {
+            border-top-color: var(--danger);
+        }
+
+        .tile-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .tile-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        .tile-sub {
+            font-size: 0.73rem;
+            color: var(--text-muted);
+        }
+
+        .tile-actions {
+            display: flex;
+            gap: 4px;
+            margin-top: 4px;
+        }
+
+        /* MODALS METRO */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-body {
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-top: 3px solid var(--accent);
+            border-radius: 2px;
+            width: 800px;
+            max-width: 90vw;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .modal-header {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+
+        .thumb-grid {
+            padding: 14px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+            gap: 8px;
+            overflow-y: auto;
+        }
+
+        .thumb-card {
+            background: var(--card-bg);
+            border: 2px solid transparent;
+            border-radius: 2px;
+            padding: 3px;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .thumb-card:hover, .thumb-card.selected {
+            border-color: var(--accent);
+        }
+
+        .thumb-card img {
+            width: 100%;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 1px;
+        }
+
+        .thumb-card span {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- HEADER METRO ORANGE -->
+    <header>
+        <div class="brand">
+            ⚔️ RPG Flow Editor <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: normal;">(Metro Pastel)</span>
+        </div>
+        <div class="header-actions">
+            <button class="btn btn-secondary btn-sm" id="btn-import">📥 Import JSON</button>
+            <button class="btn btn-sm" id="btn-export">💾 Export / Preview JSON</button>
+        </div>
+    </header>
+
+    <!-- MAIN DUAL PANEL -->
+    <main>
+        <!-- TIMELINE FLOW LIST -->
+        <section class="panel">
+            <div class="panel-header">
+                <span>Alur Cerita & Battle (Timeline Result)</span>
+                <span id="flow-count-tag" style="color: var(--accent);">0 Block</span>
+            </div>
+            <div class="panel-body">
+                <div class="flow-list" id="flow-container">
+                    <!-- Dynamic timeline items -->
+                </div>
+            </div>
+        </section>
+
+        <!-- DIALOGUE REFERENCE DB -->
+        <section class="panel">
+            <div class="panel-header">
+                <span>Database Dialog (Reference)</span>
+                <input type="text" id="search-dialogue" placeholder="Cari ID / Text..." style="width: 140px; padding: 2px 6px; font-size: 0.75rem;">
+            </div>
+            <div class="panel-body" id="dialogue-ref-container">
+                <!-- Dynamic dialogue reference items -->
+            </div>
+        </section>
+    </main>
+
+    <!-- BOTTOM SHEET CONTROL (3 METRO TABS) -->
+    <section class="sheet-control">
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="tab-dialogue">📜 Tab 1: Set Dialogue Block</button>
+            <button class="tab-btn" data-tab="tab-battle">⚔️ Tab 2: Selipkan Battle</button>
+            <button class="tab-btn" data-tab="tab-manage">🗂️ Tab 3: Kelola Blok Visual</button>
+        </div>
+
+        <!-- TAB 1: DIALOGUE BLOCK -->
+        <div class="tab-content active" id="tab-dialogue">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>From ID Dialog</label>
+                    <input type="number" id="dlg-from" value="1" min="1">
+                </div>
+                <div class="form-group">
+                    <label>To ID Dialog</label>
+                    <input type="number" id="dlg-to" value="100" min="1">
+                </div>
+                <div class="form-group">
+                    <label>Gambar Visual (Map)</label>
+                    <div class="visual-picker-trigger" id="open-visual-modal">
+                        <img src="map/1.jpg" id="selected-visual-thumb" class="thumb-mini" alt="Thumb">
+                        <span id="selected-visual-name" style="font-size: 0.8rem;">1.jpg</span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Background Music</label>
+                    <select id="dlg-music">
+                        <option value="santai">santai.wav</option>
+                        <option value="santai_2">santai_2.wav</option>
+                        <option value="diskusi">diskusi.wav</option>
+                        <option value="konflik">konflik.wav</option>
+                        <option value="misteri">misteri.wav</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <button class="btn" id="btn-add-dialogue">+ Tambah Blok Dialog</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: BATTLE INSERTION -->
+        <div class="tab-content" id="tab-battle">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Battle ID (Angka)</label>
+                    <input type="number" id="btl-id" value="1" min="1">
+                </div>
+                <div class="form-group">
+                    <label>Sisipkan Setelah Dialogue ID</label>
+                    <input type="number" id="btl-after-id" placeholder="misal: 100" min="1">
+                </div>
+                <div class="form-group">
+                    <button class="btn btn-danger" id="btn-add-battle">⚔️ Tambah Blok Battle</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: VISUAL BLOCK MANAGEMENT (NEW FEATURE) -->
+        <div class="tab-content" id="tab-manage">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-size: 0.78rem; color: var(--text-muted);">
+                    Kelola seluruh blok visual: Duplikat untuk menyalin, atau Hapus jika ada kesalahan.
+                </span>
+                <button class="btn btn-danger btn-sm" id="btn-clear-all">🗑️ Hapus Semua Blok</button>
+            </div>
+            <div class="manage-grid" id="manage-grid-container">
+                <!-- Visual Metro Tiles generated dynamically -->
+            </div>
+        </div>
+    </section>
+
+    <!-- MODAL MAP THUMBNAIL PICKER -->
+    <div class="modal-overlay" id="visual-modal">
+        <div class="modal-body">
+            <div class="modal-header">
+                <span>Pilih Gambar Visual (Map)</span>
+                <button class="btn btn-secondary btn-sm" id="close-visual-modal">✕ Close</button>
+            </div>
+            <div class="thumb-grid" id="thumb-grid-container">
+                <!-- 36 Map images -->
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL JSON EXPORT / PREVIEW -->
+    <div class="modal-overlay" id="export-modal">
+        <div class="modal-body" style="width: 600px;">
+            <div class="modal-header">
+                <span>Hasil Output JSON Alur</span>
+                <button class="btn btn-secondary btn-sm" id="close-export-modal">✕ Close</button>
+            </div>
+            <div style="padding: 14px; flex: 1; display: flex; flex-direction: column; gap: 10px;">
+                <textarea id="json-output" style="width: 100%; height: 300px; background: #000; color: #ff9f43; font-family: monospace; padding: 10px; border: 1px solid var(--border); resize: none; border-radius: 2px;"></textarea>
+                <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                    <button class="btn btn-secondary" id="btn-copy-json">📋 Copy ke Clipboard</button>
+                    <button class="btn" id="btn-download-json">💾 Download JSON File</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT MODULE INTEGRATION -->
+    <script type="module">
+        import { dialogues } from './dialogue_db.js';
+
+        // State Utama
+        let flowList = [];
+        let selectedVisualMap = "1";
+
+        // DOM Elements
+        const flowContainer = document.getElementById('flow-container');
+        const dialogueRefContainer = document.getElementById('dialogue-ref-container');
+        const searchInput = document.getElementById('search-dialogue');
+        const flowCountTag = document.getElementById('flow-count-tag');
+        const manageGridContainer = document.getElementById('manage-grid-container');
+
+        window.addEventListener('DOMContentLoaded', () => {
+            renderDialogueReference(dialogues);
+            initTabs();
+            initVisualModal();
+            initExportImport();
+            bindFormEvents();
+            renderFlowList();
+        });
+
+        // RENDER DIALOGUE REFERENCE
+        function renderDialogueReference(items) {
+            dialogueRefContainer.innerHTML = '';
+            items.forEach(d => {
+                const el = document.createElement('div');
+                el.className = 'dialogue-item';
+                el.innerHTML = `
+                    <div class="meta">ID: ${d.id} | ${d.speaker ? d.speaker.toUpperCase() : 'NARRATOR'}</div>
+                    <div class="text">${d.text}</div>
+                `;
+                el.addEventListener('click', () => {
+                    document.getElementById('dlg-from').value = d.id;
+                });
+                dialogueRefContainer.appendChild(el);
+            });
+        }
+
+        // SEARCH FILTER
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            const filtered = dialogues.filter(d => 
+                d.id.toString().includes(query) || 
+                (d.speaker && d.speaker.toLowerCase().includes(query)) || 
+                d.text.toLowerCase().includes(query)
+            );
+            renderDialogueReference(filtered);
+        });
+
+        // TAB NAVIGATION
+        function initTabs() {
+            const tabBtns = document.querySelectorAll('.tab-btn');
+            tabBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    tabBtns.forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+                    btn.classList.add('active');
+                    document.getElementById(btn.dataset.tab).classList.add('active');
+                });
+            });
+        }
+
+        // MAP THUMBNAIL MODAL
+        function initVisualModal() {
+            const modal = document.getElementById('visual-modal');
+            const grid = document.getElementById('thumb-grid-container');
+
+            document.getElementById('open-visual-modal').addEventListener('click', () => modal.classList.add('active'));
+            document.getElementById('close-visual-modal').addEventListener('click', () => modal.classList.remove('active'));
+
+            for (let i = 1; i <= 36; i++) {
+                const card = document.createElement('div');
+                card.className = `thumb-card ${i === 1 ? 'selected' : ''}`;
+                card.innerHTML = `
+                    <img src="map/${i}.jpg" loading="lazy" alt="Map ${i}">
+                    <span>${i}.jpg</span>
+                `;
+                card.addEventListener('click', () => {
+                    document.querySelectorAll('.thumb-card').forEach(c => c.classList.remove('selected'));
+                    card.classList.add('selected');
+                    selectedVisualMap = i.toString();
+                    document.getElementById('selected-visual-thumb').src = `map/${i}.jpg`;
+                    document.getElementById('selected-visual-name').textContent = `${i}.jpg`;
+                    modal.classList.remove('active');
+                });
+                grid.appendChild(card);
+            }
+        }
+
+        // FORM BINDINGS
+        function bindFormEvents() {
+            // Tambah Dialogue Block
+            document.getElementById('btn-add-dialogue').addEventListener('click', () => {
+                const fromVal = parseInt(document.getElementById('dlg-from').value);
+                const toVal = parseInt(document.getElementById('dlg-to').value);
+                const musicVal = document.getElementById('dlg-music').value;
+
+                if (isNaN(fromVal) || isNaN(toVal) || fromVal > toVal) {
+                    alert('Range ID Dialog tidak valid!');
+                    return;
+                }
+
+                flowList.push({
+                    type: "dialogue",
+                    From: fromVal,
+                    to: toVal,
+                    visual: selectedVisualMap,
+                    music: musicVal
+                });
+
+                renderFlowList();
+            });
+
+            // Tambah Battle Block
+            document.getElementById('btn-add-battle').addEventListener('click', () => {
+                const btlId = parseInt(document.getElementById('btl-id').value);
+                const afterId = parseInt(document.getElementById('btl-after-id').value);
+
+                if (isNaN(btlId)) {
+                    alert('Battle ID harus berupa angka!');
+                    return;
+                }
+
+                const battleBlock = {
+                    type: "battle",
+                    battleId: btlId
+                };
+
+                if (!isNaN(afterId) && afterId > 0) {
+                    let insertIndex = flowList.findIndex(item => item.type === "dialogue" && item.to >= afterId);
+                    if (insertIndex !== -1) {
+                        flowList.splice(insertIndex + 1, 0, battleBlock);
+                    } else {
+                        flowList.push(battleBlock);
+                    }
+                } else {
+                    flowList.push(battleBlock);
+                }
+
+                renderFlowList();
+            });
+
+            // Hapus Semua Blok (Tab 3)
+            document.getElementById('btn-clear-all').addEventListener('click', () => {
+                if (flowList.length === 0) return;
+                if (confirm('Yakin ingin menghapus seluruh blok cerita?')) {
+                    flowList = [];
+                    renderFlowList();
+                }
+            });
+        }
+
+        // RENDER MASTER (PANEL UTAMA & TAB 3 MANAGEMENT)
+        function renderFlowList() {
+            flowContainer.innerHTML = '';
+            manageGridContainer.innerHTML = '';
+            flowCountTag.textContent = `${flowList.length} Block`;
+
+            if (flowList.length === 0) {
+                flowContainer.innerHTML = `<div style="color: var(--text-muted); font-size: 0.8rem; text-align: center; margin-top: 20px;">Belum ada blok alur ditambahkan.</div>`;
+                manageGridContainer.innerHTML = `<div style="color: var(--text-muted); font-size: 0.8rem;">Belum ada blok untuk dikelola.</div>`;
+                return;
+            }
+
+            flowList.forEach((item, index) => {
+                // 1. RENDER DI TIMELINE PANEL UTAMA (KIRI)
+                const card = document.createElement('div');
+                card.className = `flow-card ${item.type === 'battle' ? 'battle-type' : ''}`;
+
+                if (item.type === 'dialogue') {
+                    card.innerHTML = `
+                        <div class="flow-info">
+                            <img src="map/${item.visual}.jpg" class="thumb-mini" alt="Map">
+                            <span class="flow-badge">DIALOGUE</span>
+                            <div class="flow-details">
+                                <strong>Dialog Range: ID ${item.From} ➔ ${item.to}</strong>
+                                <span style="color: var(--text-muted);">Visual: ${item.visual}.jpg | Music: ${item.music}.wav</span>
+                            </div>
+                        </div>
+                        <div class="card-actions">
+                            <button class="btn btn-secondary btn-sm btn-up">▲</button>
+                            <button class="btn btn-secondary btn-sm btn-down">▼</button>
+                            <button class="btn btn-danger btn-sm btn-del">✕</button>
+                        </div>
+                    `;
+                } else {
+                    card.innerHTML = `
+                        <div class="flow-info">
+                            <span class="flow-badge">BATTLE</span>
+                            <div class="flow-details">
+                                <strong>Battle Encounter ID: ${item.battleId}</strong>
+                                <span style="color: var(--danger);">Pertarungan Meletus!</span>
+                            </div>
+                        </div>
+                        <div class="card-actions">
+                            <button class="btn btn-secondary btn-sm btn-up">▲</button>
+                            <button class="btn btn-secondary btn-sm btn-down">▼</button>
+                            <button class="btn btn-danger btn-sm btn-del">✕</button>
+                        </div>
+                    `;
+                }
+
+                card.querySelector('.btn-up').addEventListener('click', () => moveItem(index, -1));
+                card.querySelector('.btn-down').addEventListener('click', () => moveItem(index, 1));
+                card.querySelector('.btn-del').addEventListener('click', () => removeItem(index));
+                flowContainer.appendChild(card);
+
+                // 2. RENDER DI TAB 3 (VISUAL BLOCK MANAGEMENT)
+                const tile = document.createElement('div');
+                tile.className = `metro-tile ${item.type === 'battle' ? 'battle-tile' : ''}`;
+
+                if (item.type === 'dialogue') {
+                    tile.innerHTML = `
+                        <div class="tile-header">
+                            <span class="tile-title" style="color: var(--accent);">#${index + 1} DIALOGUE</span>
+                            <img src="map/${item.visual}.jpg" class="thumb-mini" alt="Map">
+                        </div>
+                        <div class="tile-sub">
+                            <strong>Range:</strong> ID ${item.From} - ${item.to}<br>
+                            <strong>Music:</strong> ${item.music}
+                        </div>
+                        <div class="tile-actions">
+                            <button class="btn btn-secondary btn-sm btn-dup" style="flex:1;">📋 Duplikat</button>
+                            <button class="btn btn-danger btn-sm btn-del-tile" style="flex:1;">🗑️ Hapus</button>
+                        </div>
+                    `;
+                } else {
+                    tile.innerHTML = `
+                        <div class="tile-header">
+                            <span class="tile-title" style="color: var(--danger);">#${index + 1} BATTLE</span>
+                            <span style="font-size: 1.2rem;">⚔️</span>
+                        </div>
+                        <div class="tile-sub">
+                            <strong>Battle ID:</strong> ${item.battleId}<br>
+                            <strong>Status:</strong> Encounter
+                        </div>
+                        <div class="tile-actions">
+                            <button class="btn btn-secondary btn-sm btn-dup" style="flex:1;">📋 Duplikat</button>
+                            <button class="btn btn-danger btn-sm btn-del-tile" style="flex:1;">🗑️ Hapus</button>
+                        </div>
+                    `;
+                }
+
+                tile.querySelector('.btn-dup').addEventListener('click', () => duplicateItem(index));
+                tile.querySelector('.btn-del-tile').addEventListener('click', () => removeItem(index));
+                manageGridContainer.appendChild(tile);
+            });
+        }
+
+        // HELPER MUTASI DATA
+        function moveItem(index, direction) {
+            const newIndex = index + direction;
+            if (newIndex < 0 || newIndex >= flowList.length) return;
+            const temp = flowList[index];
+            flowList[index] = flowList[newIndex];
+            flowList[newIndex] = temp;
+            renderFlowList();
+        }
+
+        function removeItem(index) {
+            flowList.splice(index, 1);
+            renderFlowList();
+        }
+
+        function duplicateItem(index) {
+            const clone = JSON.parse(JSON.stringify(flowList[index]));
+            flowList.splice(index + 1, 0, clone);
+            renderFlowList();
+        }
+
+        // EXPORT / IMPORT JSON MODAL
+        function initExportImport() {
+            const modal = document.getElementById('export-modal');
+            const jsonTextarea = document.getElementById('json-output');
+
+            document.getElementById('btn-export').addEventListener('click', () => {
+                jsonTextarea.value = JSON.stringify(flowList, null, 2);
+                modal.classList.add('active');
+            });
+
+            document.getElementById('close-export-modal').addEventListener('click', () => modal.classList.remove('active'));
+
+            document.getElementById('btn-copy-json').addEventListener('click', () => {
+                navigator.clipboard.writeText(jsonTextarea.value);
+                alert('JSON berhasil disalin ke clipboard!');
+            });
+
+            document.getElementById('btn-download-json').addEventListener('click', () => {
+                const blob = new Blob([jsonTextarea.value], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'story_flow.json';
+                a.click();
+            });
+
+            document.getElementById('btn-import').addEventListener('click', () => {
+                const input = prompt("Paste JSON alur di sini:");
+                if (input) {
+                    try {
+                        const parsed = JSON.parse(input);
+                        if (Array.isArray(parsed)) {
+                            flowList = parsed;
+                            renderFlowList();
+                            alert("Berhasil mengimpor alur!");
+                        } else {
+                            alert("Format JSON harus berupa Array!");
+                        }
+                    } catch (e) {
+                        alert("Gagal membaca JSON: " + e.message);
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
